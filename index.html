@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leitor de PDF Avançado</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            height: 100vh;
+            display: flex;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .pdf-viewer {
+            flex: 3;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .pdf-container {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+            position: relative;
+        }
+
+        .sidebar {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 400px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            padding: 15px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            background: #4a90e2;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background: #357abd;
+        }
+
+        button:disabled {
+            background: #a0c4ff;
+            cursor: not-allowed;
+        }
+
+        .annotation-box {
+            flex: 1;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page-info {
+            padding: 10px;
+            text-align: center;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin: 0 15px 15px 15px;
+        }
+
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        input[type="range"] {
+            flex: 1;
+        }
+
+        .file-input {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .file-input input {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        #pdf-image {
+            width: 100%;
+            height: auto;
+            transition: transform 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            color: #666;
+        }
+
+        .editor-toolbar {
+            display: flex;
+            gap: 8px;
+            padding: 10px;
+            background: #0775e4;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .toolbar-button {
+            padding: 6px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            border-radius: 4px;
+            width: 32px;
+            height: 32px;
+        }
+
+        .toolbar-button:hover {
+            background: #e9ecef;
+        }
+
+        .toolbar-button.active {
+            background: #4a90e2;
+            color: white;
+        }
+
+        #editor {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            line-height: 1.6;
+            outline: none;
+            height: 300px;
+            max-height: 450px;
+        }
+
+        #editor:focus-visible {
+            outline: none;
+        }
+
+        .color-picker {
+            width: 32px;
+            height: 32px;
+            padding: 2px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .font-selector {
+            padding: 4px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        .font-size-selector {
+            padding: 4px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        .image-upload {
+            display: flex;
+            gap: 10px;
+        }
+
+        .image-upload input {
+            flex: 1;
+        }
+
+        .resizable-img {
+            width: 200px;
+            height: auto;
+            resize: both;
+            overflow: hidden;
+            border: 2px solid #ddd;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="pdf-viewer">
+            <div class="controls">
+                <button class="file-input">
+                    <i class="fas fa-file-upload"></i>
+                    Carregar PDF
+                    <input type="file" id="file-input" accept=".pdf">
+                </button>
+                <button id="prev" title="Página Anterior">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <div class="page-info">
+                    <span id="current-page">1</span> / 
+                    <span id="total-pages">-</span>
+                </div>
+                <button id="next" title="Próxima Página">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+                <button id="toggle-reading" title="Iniciar Leitura">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+                <button id="copy-page" title="Copiar Conteúdo da Página">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+            <div class="pdf-container">
+                <div id="pdf-image"></div>
+            </div>
+            <div class="zoom-controls">
+                <button id="zoom-out" title="Zoom Out">
+                    <i class="fas fa-search-minus"></i>
+                </button>
+                <input type="range" id="zoom-range" min="50" max="200" value="100">
+                <button id="zoom-in" title="Zoom In">
+                    <i class="fas fa-search-plus"></i>
+                </button>
+                <span id="zoom-percent">100%</span>
+            </div>
+        </div>
+        
+        <div class="sidebar">
+            <div class="annotation-box">
+                <h3 style="padding: 15px; border-bottom: 1px solid #ec9999;">Anotações</h3>
+                <div class="editor-toolbar">
+                    <button class="toolbar-button" data-command="bold" title="Negrito">
+                        <i class="fas fa-bold"></i>
+                    </button>
+                    <button class="toolbar-button" data-command="italic" title="Itálico">
+                        <i class="fas fa-italic"></i>
+                    </button>
+                    <button class="toolbar-button" data-command="underline" title="Sublinhado">
+                        <i class="fas fa-underline"></i>
+                    </button>
+                    <input type="color" class="color-picker" title="Cor do Texto">
+                    <select class="font-selector" title="Fonte">
+                        <option value="Arial">Arial</option>
+                        <option value="Times New Roman">Times</option>
+                        <option value="Courier New">Courier</option>
+                    </select>
+                    <select class="font-size-selector" title="Tamanho da Fonte">
+                        <option value="12px">12px</option>
+                        <option value="14px">14px</option>
+                        <option value="16px">16px</option>
+                        <option value="18px">18px</option>
+                        <option value="20px">20px</option>
+                    </select>
+                    <button class="toolbar-button" data-command="insertUnorderedList" title="Lista não ordenada">
+                        <i class="fas fa-list-ul"></i>
+                    </button>
+                    <button class="toolbar-button" data-command="insertOrderedList" title="Lista ordenada">
+                        <i class="fas fa-list-ol"></i>
+                    </button>
+                    <button class="toolbar-button" id="insert-image" title="Inserir Imagem">
+                        <i class="fas fa-image"></i>
+                    </button>
+                </div>
+                <div id="editor" contenteditable="true"></div>
+                <div class="image-upload">
+                    <input type="file" id="image-upload" accept="image/*" style="display:none;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const pdfjsLib = window['pdfjs-dist/build/pdf'];
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
+
+            let pdfDoc = null;
+            let currentPage = 1;
+            let scale = 1.0;
+            let isReading = false;
+            let currentSpeech = null;
+            let pageCanvas = null;
+
+            const elements = {
+                fileInput: document.getElementById('file-input'),
+                pdfImage: document.getElementById('pdf-image'),
+                prevButton: document.getElementById('prev'),
+                nextButton: document.getElementById('next'),
+                currentPage: document.getElementById('current-page'),
+                totalPages: document.getElementById('total-pages'),
+                zoomRange: document.getElementById('zoom-range'),
+                zoomIn: document.getElementById('zoom-in'),
+                zoomOut: document.getElementById('zoom-out'),
+                zoomPercent: document.getElementById('zoom-percent'),
+                toggleReading: document.getElementById('toggle-reading'),
+                copyPageButton: document.getElementById('copy-page'),
+                editor: document.getElementById('editor')
+            };
+
+            // Função para renderizar a página
+            const renderPage = async (pageNum) => {
+                if (!pdfDoc) return;
+                
+                try {
+                    const page = await pdfDoc.getPage(pageNum);
+                    const viewport = page.getViewport({ scale });
+                    
+                    pageCanvas = document.createElement('canvas');
+                    const ctx = pageCanvas.getContext('2d');
+                    pageCanvas.height = viewport.height;
+                    pageCanvas.width = viewport.width;
+
+                    await page.render({ canvasContext: ctx, viewport }).promise;
+                    
+                    elements.pdfImage.innerHTML = '';
+                    elements.pdfImage.appendChild(pageCanvas);
+                    elements.currentPage.textContent = pageNum;
+                } catch (error) {
+                    console.error('Erro ao renderizar página:', error);
+                    alert('Erro ao carregar a página');
+                }
+            };
+
+            // Carregar PDF
+            const loadPDF = (file) => {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const loadingTask = pdfjsLib.getDocument(e.target.result);
+                        pdfDoc = await loadingTask.promise;
+                        elements.totalPages.textContent = pdfDoc.numPages;
+                        currentPage = 1;
+                        renderPage(currentPage);
+                    } catch (error) {
+                        console.error('Erro ao carregar PDF:', error);
+                        alert('Erro ao carregar o arquivo PDF');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            };
+
+            // Controles de Zoom
+            const updateZoom = (value) => {
+                scale = value / 100;
+                elements.zoomRange.value = value;
+                elements.zoomPercent.textContent = `${value}%`;
+                renderPage(currentPage);
+            };
+
+            // Leitura em voz alta
+            const toggleTextToSpeech = async () => {
+                if (!pdfDoc) return;
+
+                if (isReading) {
+                    window.speechSynthesis.cancel();
+                    isReading = false;
+                    elements.toggleReading.innerHTML = '<i class="fas fa-volume-up"></i>';
+                } else {
+                    try {
+                        const page = await pdfDoc.getPage(currentPage);
+                        const textContent = await page.getTextContent();
+                        const text = textContent.items.map(item => item.str).join(' ');
+                        
+                        if ('speechSynthesis' in window) {
+                            const speech = new SpeechSynthesisUtterance(text);
+                            speech.lang = 'pt-BR';
+                            
+                            speech.onstart = () => {
+                                isReading = true;
+                                elements.toggleReading.innerHTML = '<i class="fas fa-stop"></i>';
+                            };
+                            
+                            speech.onend = () => {
+                                isReading = false;
+                                elements.toggleReading.innerHTML = '<i class="fas fa-volume-up"></i>';
+                            };
+
+                            window.speechSynthesis.speak(speech);
+                        }
+                    } catch (error) {
+                        console.error('Erro na leitura:', error);
+                    }
+                }
+            };
+
+            // Copiar conteúdo da página
+            const copyPageContent = async () => {
+                if (!pdfDoc) return;
+
+                try {
+                    const page = await pdfDoc.getPage(currentPage);
+                    const textContent = await page.getTextContent();
+                    const text = textContent.items.map(item => item.str).join('\n');
+                    
+                    await navigator.clipboard.writeText(text);
+                    alert('Conteúdo copiado com sucesso!');
+                } catch (error) {
+                    console.error('Erro ao copiar:', error);
+                    alert('Erro ao copiar conteúdo');
+                }
+            };
+
+            // Event Listeners
+            elements.fileInput.addEventListener('change', (e) => {
+                if (e.target.files[0]) {
+                    loadPDF(e.target.files[0]);
+                }
+            });
+
+            elements.prevButton.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderPage(currentPage);
+                }
+            });
+
+            elements.nextButton.addEventListener('click', () => {
+                if (pdfDoc && currentPage < pdfDoc.numPages) {
+                    currentPage++;
+                    renderPage(currentPage);
+                }
+            });
+
+            elements.zoomRange.addEventListener('input', (e) => {
+                updateZoom(parseInt(e.target.value));
+            });
+
+            elements.zoomIn.addEventListener('click', () => {
+                const newValue = Math.min(200, parseInt(elements.zoomRange.value) + 10);
+                updateZoom(newValue);
+            });
+
+            elements.zoomOut.addEventListener('click', () => {
+                const newValue = Math.max(50, parseInt(elements.zoomRange.value) - 10);
+                updateZoom(newValue);
+            });
+
+            elements.toggleReading.addEventListener('click', toggleTextToSpeech);
+            elements.copyPageButton.addEventListener('click', copyPageContent);
+
+            // Editor de texto
+            document.querySelectorAll('.toolbar-button').forEach(button => {
+                button.addEventListener('click', () => {
+                    const command = button.dataset.command;
+                    document.execCommand(command);
+                });
+            });
+
+            document.querySelector('.color-picker').addEventListener('input', (e) => {
+                document.execCommand('foreColor', false, e.target.value);
+            });
+
+            document.querySelector('.font-selector').addEventListener('change', (e) => {
+                document.execCommand('fontName', false, e.target.value);
+            });
+
+            document.querySelector('.font-size-selector').addEventListener('change', (e) => {
+                document.execCommand('fontSize', false, e.target.value.replace('px', ''));
+            });
+
+            document.getElementById('insert-image').addEventListener('click', () => {
+                document.getElementById('image-upload').click();
+            });
+
+            document.getElementById('image-upload').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        const img = document.createElement('img');
+                        img.src = reader.result;
+                        img.classList.add('resizable-img');
+                        elements.editor.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
